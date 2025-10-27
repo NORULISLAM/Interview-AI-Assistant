@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interview AI Overlay</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: transparent;
+        overflow: hidden;
+      }
+
+      .overlay-container {
+        width: 400px;
+        height: 300px;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+
+      .overlay-header {
+        padding: 12px 16px;
+        background: rgba(59, 130, 246, 0.1);
+        border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        border-radius: 12px 12px 0 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .overlay-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #1f2937;
+        margin: 0;
+      }
+
+      .overlay-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #10b981;
+        animation: pulse 2s infinite;
+      }
+
+      .status-text {
+        font-size: 12px;
+        color: #6b7280;
+      }
+
+      .overlay-content {
+        flex: 1;
+        padding: 16px;
+        overflow-y: auto;
+      }
+
+      .suggestion-item {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 8px;
+        font-size: 13px;
+        line-height: 1.4;
+        color: #374151;
+      }
+
+      .suggestion-type {
+        display: inline-block;
+        background: #dbeafe;
+        color: #1e40af;
+        font-size: 10px;
+        font-weight: 500;
+        padding: 2px 6px;
+        border-radius: 4px;
+        margin-bottom: 6px;
+      }
+
+      .transcript-item {
+        background: #f9fafb;
+        border-left: 3px solid #3b82f6;
+        padding: 8px 12px;
+        margin-bottom: 6px;
+        font-size: 12px;
+        color: #374151;
+        border-radius: 0 4px 4px 0;
+      }
+
+      .empty-state {
+        text-align: center;
+        color: #9ca3af;
+        font-size: 12px;
+        padding: 20px;
+      }
+
+      .recording-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .recording-dot {
+        width: 8px;
+        height: 8px;
+        background: #ef4444;
+        border-radius: 50%;
+        animation: pulse 1s infinite;
+      }
+
+      .recording-text {
+        font-size: 12px;
+        color: #ef4444;
+        font-weight: 500;
+      }
+
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      /* Scrollbar styling */
+      .overlay-content::-webkit-scrollbar {
+        width: 4px;
+      }
+
+      .overlay-content::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .overlay-content::-webkit-scrollbar-thumb {
+        background: rgba(156, 163, 175, 0.5);
+        border-radius: 2px;
+      }
+
+      .overlay-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(156, 163, 175, 0.8);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="overlay-container">
+      <div class="overlay-header">
+        <h3 class="overlay-title">Interview AI</h3>
+        <div class="overlay-status">
+          <div class="status-indicator"></div>
+          <span class="status-text">Connected</span>
+        </div>
+      </div>
+
+      <div class="overlay-content">
+        <div class="recording-indicator">
+          <div class="recording-dot"></div>
+          <span class="recording-text">Recording...</span>
+        </div>
+
+        <div id="suggestions-container">
+          <div class="suggestion-item">
+            <div class="suggestion-type">TIP</div>
+            <div>
+              Speak clearly and at a moderate pace. Take a moment to think
+              before answering complex questions.
+            </div>
+          </div>
+
+          <div class="suggestion-item">
+            <div class="suggestion-type">ANSWER</div>
+            <div>
+              For behavioral questions, use the STAR method: Situation, Task,
+              Action, Result.
+            </div>
+          </div>
+        </div>
+
+        <div id="transcript-container" style="margin-top: 16px; display: none">
+          <div class="transcript-item">
+            <strong>Interviewer:</strong> Tell me about a challenging project
+            you worked on.
+          </div>
+          <div class="transcript-item">
+            <strong>You:</strong> I worked on a complex system migration...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Overlay functionality
+      class OverlayManager {
+        constructor() {
+          this.isRecording = true;
+          this.isConnected = true;
+          this.suggestions = [];
+          this.transcript = [];
+          this.init();
+        }
+
+        init() {
+          this.updateStatus();
+          this.simulateData();
+        }
+
+        updateStatus() {
+          const statusIndicator = document.querySelector(".status-indicator");
+          const statusText = document.querySelector(".status-text");
+
+          if (this.isConnected) {
+            statusIndicator.style.background = "#10b981";
+            statusText.textContent = "Connected";
+          } else {
+            statusIndicator.style.background = "#ef4444";
+            statusText.textContent = "Disconnected";
+          }
+        }
+
+        simulateData() {
+          // Simulate receiving new suggestions
+          setInterval(() => {
+            this.addSuggestion({
+              type: "QUESTION",
+              content:
+                "Consider asking about the company culture and growth opportunities.",
+            });
+          }, 15000);
+
+          // Simulate transcript updates
+          setInterval(() => {
+            this.addTranscriptSegment(
+              "Interviewer",
+              "That sounds interesting. Can you elaborate on the technical challenges you faced?"
+            );
+          }, 20000);
+        }
+
+        addSuggestion(suggestion) {
+          const container = document.getElementById("suggestions-container");
+          const suggestionElement = document.createElement("div");
+          suggestionElement.className = "suggestion-item";
+          suggestionElement.innerHTML = `
+                    <div class="suggestion-type">${suggestion.type}</div>
+                    <div>${suggestion.content}</div>
+                `;
+
+          container.insertBefore(suggestionElement, container.firstChild);
+
+          // Keep only the last 5 suggestions
+          while (container.children.length > 5) {
+            container.removeChild(container.lastChild);
+          }
+
+          // Add fade-in animation
+          suggestionElement.style.opacity = "0";
+          suggestionElement.style.transform = "translateY(-10px)";
+          setTimeout(() => {
+            suggestionElement.style.transition = "all 0.3s ease";
+            suggestionElement.style.opacity = "1";
+            suggestionElement.style.transform = "translateY(0)";
+          }, 100);
+        }
+
+        addTranscriptSegment(speaker, text) {
+          const container = document.getElementById("transcript-container");
+          const transcriptElement = document.createElement("div");
+          transcriptElement.className = "transcript-item";
+          transcriptElement.innerHTML = `<strong>${speaker}:</strong> ${text}`;
+
+          container.appendChild(transcriptElement);
+          container.style.display = "block";
+
+          // Keep only the last 10 segments
+          while (container.children.length > 10) {
+            container.removeChild(container.firstChild);
+          }
+
+          // Scroll to bottom
+          container.scrollTop = container.scrollHeight;
+        }
+
+        toggleRecording() {
+          this.isRecording = !this.isRecording;
+          const recordingIndicator = document.querySelector(
+            ".recording-indicator"
+          );
+          recordingIndicator.style.display = this.isRecording ? "flex" : "none";
+        }
+      }
+
+      // Initialize overlay
+      const overlay = new OverlayManager();
+
+      // Handle IPC messages from main process
+      if (window.electronAPI) {
+        // Listen for recording state changes
+        window.electronAPI.onRecordingStateChange((recording) => {
+          overlay.toggleRecording();
+        });
+      }
+
+      // Make overlay draggable
+      let isDragging = false;
+      let currentX;
+      let currentY;
+      let initialX;
+      let initialY;
+      let xOffset = 0;
+      let yOffset = 0;
+
+      const overlayContainer = document.querySelector(".overlay-container");
+
+      overlayContainer.addEventListener("mousedown", dragStart);
+      document.addEventListener("mousemove", drag);
+      document.addEventListener("mouseup", dragEnd);
+
+      function dragStart(e) {
+        initialX = e.clientX - xOffset;
+        initialY = e.clientY - yOffset;
+
+        if (
+          e.target === overlayContainer ||
+          overlayContainer.contains(e.target)
+        ) {
+          isDragging = true;
+        }
+      }
+
+      function drag(e) {
+        if (isDragging) {
+          e.preventDefault();
+          currentX = e.clientX - initialX;
+          currentY = e.clientY - initialY;
+
+          xOffset = currentX;
+          yOffset = currentY;
+
+          overlayContainer.style.transform = `translate(${currentX}px, ${currentY}px)`;
+        }
+      }
+
+      function dragEnd(e) {
+        initialX = currentX;
+        initialY = currentY;
+        isDragging = false;
+      }
+    </script>
+  </body>
+</html>

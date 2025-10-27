@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Interview AI Assistant</title>
+    <style>
+      body {
+        width: 350px;
+        min-height: 400px;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #f8fafc;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+        color: white;
+        padding: 16px;
+        text-align: center;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+
+      .header p {
+        margin: 4px 0 0 0;
+        font-size: 12px;
+        opacity: 0.9;
+      }
+
+      .content {
+        padding: 16px;
+      }
+
+      .status-card {
+        background: white;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        border: 1px solid #e2e8f0;
+      }
+
+      .status-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .status-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .status-label {
+        font-size: 14px;
+        color: #374151;
+      }
+
+      .status-value {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+
+      .status-online {
+        background: #10b981;
+      }
+
+      .status-offline {
+        background: #6b7280;
+      }
+
+      .status-error {
+        background: #ef4444;
+      }
+
+      .controls {
+        background: white;
+        border-radius: 8px;
+        padding: 16px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 16px;
+      }
+
+      .control-button {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 8px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .control-button:last-child {
+        margin-bottom: 0;
+      }
+
+      .btn-primary {
+        background: #3b82f6;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #2563eb;
+      }
+
+      .btn-secondary {
+        background: #f1f5f9;
+        color: #475569;
+      }
+
+      .btn-secondary:hover {
+        background: #e2e8f0;
+      }
+
+      .btn-success {
+        background: #10b981;
+        color: white;
+      }
+
+      .btn-success:hover {
+        background: #059669;
+      }
+
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .settings-link {
+        display: block;
+        text-align: center;
+        color: #3b82f6;
+        text-decoration: none;
+        font-size: 12px;
+        margin-top: 12px;
+      }
+
+      .settings-link:hover {
+        text-decoration: underline;
+      }
+
+      .meeting-info {
+        background: white;
+        border-radius: 8px;
+        padding: 12px;
+        border: 1px solid #e2e8f0;
+        margin-bottom: 16px;
+      }
+
+      .meeting-info h3 {
+        margin: 0 0 8px 0;
+        font-size: 14px;
+        color: #374151;
+      }
+
+      .meeting-details {
+        font-size: 12px;
+        color: #6b7280;
+        line-height: 1.4;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      .loading {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #f3f4f6;
+        border-top: 2px solid #3b82f6;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>Interview AI Assistant</h1>
+      <p>Real-time interview support</p>
+    </div>
+
+    <div class="content">
+      <!-- Meeting Info -->
+      <div class="meeting-info" id="meeting-info">
+        <h3>Meeting Detected</h3>
+        <div class="meeting-details" id="meeting-details">
+          Platform: <span id="meeting-platform">Unknown</span><br />
+          Status: <span id="meeting-status">Not in meeting</span>
+        </div>
+      </div>
+
+      <!-- Status Card -->
+      <div class="status-card">
+        <div class="status-item">
+          <span class="status-label">Connection</span>
+          <div class="status-value">
+            <div class="status-dot status-offline" id="connection-status"></div>
+            <span id="connection-text">Disconnected</span>
+          </div>
+        </div>
+        <div class="status-item">
+          <span class="status-label">Recording</span>
+          <div class="status-value">
+            <div class="status-dot status-offline" id="recording-status"></div>
+            <span id="recording-text">Stopped</span>
+          </div>
+        </div>
+        <div class="status-item">
+          <span class="status-label">AI Assistant</span>
+          <div class="status-value">
+            <div class="status-dot status-offline" id="ai-status"></div>
+            <span id="ai-text">Inactive</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="controls">
+        <button class="control-button btn-primary" id="connect-btn">
+          Connect to Service
+        </button>
+        <button
+          class="control-button btn-secondary"
+          id="start-recording-btn"
+          disabled
+        >
+          Start Recording
+        </button>
+        <button
+          class="control-button btn-danger"
+          id="stop-recording-btn"
+          disabled
+        >
+          Stop Recording
+        </button>
+        <button
+          class="control-button btn-secondary"
+          id="toggle-overlay-btn"
+          disabled
+        >
+          Show Overlay
+        </button>
+        <button class="control-button btn-secondary" id="open-settings-btn">
+          Settings
+        </button>
+      </div>
+
+      <a href="#" class="settings-link" id="help-link">Need help?</a>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
