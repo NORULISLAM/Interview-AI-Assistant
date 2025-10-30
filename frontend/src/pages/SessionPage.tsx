@@ -12,32 +12,57 @@ import { useParams } from "react-router-dom";
 import LoadingSpinner from "../components/LoadingSpinner";
 import { llmAPI, sessionAPI } from "../lib/api";
 
+type SessionModel = {
+  id: number;
+  status: "active" | "ended" | string;
+  platform?: string;
+  session_type?: string;
+  started_at?: string; // optional in mock
+  ended_at?: string; // optional in mock
+  duration_minutes?: number; // optional in mock
+  [k: string]: any;
+};
+
+type SuggestionModel = {
+  id: number;
+  text: string; // mock backend field
+  accepted?: boolean;
+  dismissed?: boolean;
+};
+
 const SessionPage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<SessionModel | null>(null);
   const [transcript, setTranscript] = useState<string[]>([]);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<SuggestionModel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRecording, setIsRecording] = useState(false);
   const [chatMessage, setChatMessage] = useState("");
 
   useEffect(() => {
-    if (sessionId) {
-      loadSessionData();
-    }
+    if (sessionId) loadSessionData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
   const loadSessionData = async () => {
+    setIsLoading(true);
     try {
-      const [sessionResponse, suggestionsResponse] = await Promise.all([
-        sessionAPI.getById(parseInt(sessionId!)),
-        llmAPI.getSuggestions(parseInt(sessionId!)),
+      const id = parseInt(sessionId!, 10);
+      const [sessionRes, suggestionsRes] = await Promise.all([
+        sessionAPI.getById(id), // -> object
+        llmAPI.getSuggestions(id), // -> {items, total}
       ]);
 
-      setSession(sessionResponse.data);
-      setSuggestions(suggestionsResponse.data);
-    } catch (error) {
-      console.error("Failed to load session data:", error);
+      setSession(sessionRes.data as SessionModel);
+
+      const items = (suggestionsRes.data?.items ?? []) as Array<{
+        id: number;
+        text: string;
+      }>;
+      // normalize to UI shape
+      setSuggestions(items.map((s) => ({ id: s.id, text: s.text })));
+    } catch (e) {
+      console.error("Failed to load session data:", e);
       toast.error("Failed to load session data");
     } finally {
       setIsLoading(false);
@@ -46,32 +71,24 @@ const SessionPage: React.FC = () => {
 
   const handleStartRecording = () => {
     setIsRecording(true);
-    // TODO: Implement actual recording
-    toast.success("Recording started");
+    toast.success("Recording started (mock)");
   };
 
   const handleStopRecording = () => {
     setIsRecording(false);
-    // TODO: Implement actual recording stop
-    toast.success("Recording stopped");
+    toast.success("Recording stopped (mock)");
   };
 
   const handleSendMessage = async () => {
     if (!chatMessage.trim() || !sessionId) return;
-
     try {
-      const response = await llmAPI.chat(chatMessage, parseInt(sessionId));
-
-      // Add user message and AI response to transcript
-      setTranscript((prev) => [
-        ...prev,
-        `You: ${chatMessage}`,
-        `AI: ${response.data.response}`,
-      ]);
-
+      const id = parseInt(sessionId, 10);
+      const res = await llmAPI.chat(chatMessage, id); // mock returns {reply, session_id}
+      const reply = res.data?.reply ?? "(no reply)";
+      setTranscript((prev) => [...prev, `You: ${chatMessage}`, `AI: ${reply}`]);
       setChatMessage("");
-    } catch (error) {
-      console.error("Failed to send message:", error);
+    } catch (e) {
+      console.error("Failed to send message:", e);
       toast.error("Failed to send message");
     }
   };
@@ -85,16 +102,14 @@ const SessionPage: React.FC = () => {
         accepted,
         rating: accepted ? 5 : 1,
       });
-
       setSuggestions((prev) =>
         prev.map((s) =>
           s.id === suggestionId ? { ...s, accepted, dismissed: !accepted } : s
         )
       );
-
-      toast.success(`Suggestion ${accepted ? "accepted" : "dismissed"}`);
-    } catch (error) {
-      console.error("Failed to update feedback:", error);
+      toast.success(accepted ? "Suggestion accepted" : "Suggestion dismissed");
+    } catch (e) {
+      console.error("Failed to update feedback:", e);
       toast.error("Failed to update feedback");
     }
   };
@@ -125,6 +140,8 @@ const SessionPage: React.FC = () => {
     );
   }
 
+  const isActive = (session.status ?? "").toLowerCase() === "active";
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -139,10 +156,13 @@ const SessionPage: React.FC = () => {
             </button>
             <div className="flex-1">
               <h1 className="text-xl font-semibold text-gray-900">
-                Interview Session - {session.session_type}
+                Interview Session
+                {session.session_type ? ` - ${session.session_type}` : ""}
               </h1>
               <p className="text-sm text-gray-500">
-                Started {new Date(session.started_at).toLocaleString()}
+                {session.started_at
+                  ? `Started ${new Date(session.started_at).toLocaleString()}`
+                  : "Started: N/A"}
               </p>
             </div>
 
@@ -166,12 +186,12 @@ const SessionPage: React.FC = () => {
 
               <span
                 className={`px-3 py-1 text-sm rounded-full ${
-                  session.is_active
+                  isActive
                     ? "bg-green-100 text-green-800"
                     : "bg-gray-100 text-gray-800"
                 }`}
               >
-                {session.is_active ? "Active" : "Ended"}
+                {isActive ? "Active" : "Ended"}
               </span>
             </div>
           </div>
@@ -214,7 +234,7 @@ const SessionPage: React.FC = () => {
                   type="text"
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
+                  onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
                   placeholder="Ask a question or request help..."
                   className="flex-1 input"
                 />
@@ -238,27 +258,23 @@ const SessionPage: React.FC = () => {
 
               {suggestions.length > 0 ? (
                 <div className="space-y-3">
-                  {suggestions.map((suggestion) => (
+                  {suggestions.map((s) => (
                     <div
-                      key={suggestion.id}
+                      key={s.id}
                       className="p-4 bg-blue-50 border border-blue-200 rounded-lg"
                     >
                       <div className="mb-3">
                         <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mb-2">
-                          {suggestion.suggestion_type}
+                          TIP
                         </span>
-                        <p className="text-sm text-gray-800">
-                          {suggestion.content}
-                        </p>
+                        <p className="text-sm text-gray-800">{s.text}</p>
                       </div>
 
                       <div className="flex space-x-2">
                         <button
-                          onClick={() =>
-                            handleSuggestionFeedback(suggestion.id, true)
-                          }
+                          onClick={() => handleSuggestionFeedback(s.id, true)}
                           className={`flex-1 py-1 px-3 text-xs rounded ${
-                            suggestion.accepted
+                            s.accepted
                               ? "bg-green-100 text-green-700"
                               : "bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700"
                           }`}
@@ -267,11 +283,9 @@ const SessionPage: React.FC = () => {
                           Useful
                         </button>
                         <button
-                          onClick={() =>
-                            handleSuggestionFeedback(suggestion.id, false)
-                          }
+                          onClick={() => handleSuggestionFeedback(s.id, false)}
                           className={`flex-1 py-1 px-3 text-xs rounded ${
-                            suggestion.dismissed
+                            s.dismissed
                               ? "bg-red-100 text-red-700"
                               : "bg-gray-100 text-gray-700 hover:bg-red-100 hover:text-red-700"
                           }`}
@@ -295,14 +309,13 @@ const SessionPage: React.FC = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 Session Info
               </h3>
-
               <div className="space-y-3">
                 <div>
                   <span className="text-sm font-medium text-gray-700">
                     Platform:
                   </span>
                   <span className="ml-2 text-sm text-gray-600">
-                    {session.platform}
+                    {session.platform ?? "N/A"}
                   </span>
                 </div>
                 <div>
@@ -310,17 +323,27 @@ const SessionPage: React.FC = () => {
                     Type:
                   </span>
                   <span className="ml-2 text-sm text-gray-600">
-                    {session.session_type}
+                    {session.session_type ?? "N/A"}
                   </span>
                 </div>
                 <div>
                   <span className="text-sm font-medium text-gray-700">
-                    Started:
+                    Status:
                   </span>
                   <span className="ml-2 text-sm text-gray-600">
-                    {new Date(session.started_at).toLocaleString()}
+                    {session.status}
                   </span>
                 </div>
+                {session.started_at && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">
+                      Started:
+                    </span>
+                    <span className="ml-2 text-sm text-gray-600">
+                      {new Date(session.started_at).toLocaleString()}
+                    </span>
+                  </div>
+                )}
                 {session.ended_at && (
                   <div>
                     <span className="text-sm font-medium text-gray-700">
@@ -331,7 +354,7 @@ const SessionPage: React.FC = () => {
                     </span>
                   </div>
                 )}
-                {session.duration_minutes && (
+                {typeof session.duration_minutes === "number" && (
                   <div>
                     <span className="text-sm font-medium text-gray-700">
                       Duration:

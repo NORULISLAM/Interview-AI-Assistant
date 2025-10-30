@@ -2,16 +2,9 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
-import os
-from fastapi.responses import FileResponse
-
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 
 app = FastAPI(title="Inter Mock API", openapi_url="/api/v1/openapi.json")
 
-# Dev CORS: allow local frontend; add "*" if you want all in dev
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -20,7 +13,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ---------- Auth (DEV: no real checks) ----------
+DEMO_TOKEN = "demo-token"
+
 class MagicLinkIn(BaseModel):
     email: str
 
@@ -30,21 +24,22 @@ def health():
 
 @app.post("/api/v1/auth/magic-link")
 def send_magic_link(body: MagicLinkIn):
-    # just pretend success
     return {"sent": True, "message": f"Magic link sent to {body.email}"}
 
 @app.post("/api/v1/auth/verify")
 def verify(token: Optional[str] = None):
-    # always returns a fake token
-    return {"access_token": token or "demo-token", "token_type": "bearer"}
+    tok = token or DEMO_TOKEN
+    return {"access_token": tok, "token_type": "bearer"}
 
 @app.get("/api/v1/auth/me")
-def me():
-    # DEV: no header check
+def me(request: Request):
+    auth = request.headers.get("authorization", "")
+    if not auth.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
     return {
         "id": 1,
         "email": "demo@example.com",
-        "auth_provider": "dev",
+        "auth_provider": "magic",
         "is_verified": True,
         "auto_delete_enabled": False,
         "retention_hours": 24,
@@ -55,24 +50,16 @@ def me():
 def logout():
     return {"ok": True}
 
-# ---------- In-memory stubs ----------
-
-_resumes: list[dict] = []
+# In-memory stubs
+_resumes: List[Dict[str, Any]] = []
 _resume_id = 0
 
 @app.post("/api/v1/resumes/")
 async def upload_resume(file: UploadFile = File(...)):
     global _resume_id
-    data = await file.read()
     _resume_id += 1
-    fname = f"{_resume_id}_{file.filename}"
-    path = os.path.join(UPLOAD_DIR, fname)
-    with open(path, "wb") as f:
-        f.write(data)
-    rec = {"id": _resume_id, "filename": file.filename, "path": path}
-    _resumes.append(rec)
-    return {"id": rec["id"], "filename": rec["filename"]}
-
+    _resumes.append({"id": _resume_id, "filename": file.filename})
+    return {"id": _resume_id, "filename": file.filename}
 
 @app.get("/api/v1/resumes/")
 def list_resumes():
@@ -90,15 +77,6 @@ def delete_resume(rid: int):
     global _resumes
     _resumes = [r for r in _resumes if r["id"] != rid]
     return {"deleted": True}
-
-@app.get("/api/v1/resumes/download/{rid}")
-def download_resume(rid: int):
-    for r in _resumes:
-        if r["id"] == rid:
-            return FileResponse(r["path"], filename=r["filename"])
-    raise HTTPException(status_code=404, detail="Not found")
-
-
 
 _sessions: Dict[int, Dict[str, Any]] = {}
 _session_id = 0
@@ -135,17 +113,15 @@ def delete_session(sid: int):
     _sessions.pop(sid, None)
     return {"deleted": True}
 
-# ---------- Fake ASR ----------
 @app.get("/api/v1/asr/health")
 def asr_health():
     return {"status": "ok"}
 
 @app.post("/api/v1/asr/transcribe/{session_id}")
 async def transcribe(session_id: int, request: Request):
-    _ = await request.body()  # ignore bytes, just fake response
+    _ = await request.body()
     return {"session_id": session_id, "text": "This is a fake transcript."}
 
-# ---------- Mock LLM ----------
 @app.post("/api/v1/llm/suggestions")
 def generate_suggestion(payload: Dict[str, Any]):
     return {"suggestion": "Try highlighting your recent project impact more clearly."}
@@ -167,39 +143,3 @@ def chat(payload: Dict[str, Any]):
     msg = payload.get("message", "")
     sid = payload.get("session_id")
     return {"reply": f"(mock) You said: {msg}", "session_id": sid}
-
-## settings endpoint
-# ---- Mock user profile (no auth) ----
-_user = {
-    "id": 1,
-    "email": "demo@example.com",
-    "auto_delete_enabled": True,
-    "retention_hours": 24,
-    "preferred_llm_model": "gpt-4o-mini",
-    "overlay_position": "bottom-right",
-    "created_at": "2025-01-01T00:00:00Z",
-}
-
-@app.get("/api/v1/users/me")
-def get_user_me():
-    return _user
-
-@app.patch("/api/v1/users/me")
-def patch_user_me(payload: Dict[str, Any]):
-    allowed = {"auto_delete_enabled", "retention_hours", "preferred_llm_model", "overlay_position"}
-    for k, v in payload.items():
-        if k in allowed:
-            _user[k] = v
-    return _user
-
-@app.delete("/api/v1/users/me")
-def delete_user_me():
-    # In a real app you'd soft-delete; here just signal success.
-    return {"deleted": True}
-
-
-
-# ---------- Dev entry ----------
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

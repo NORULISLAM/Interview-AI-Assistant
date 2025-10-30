@@ -88,6 +88,13 @@ pip install -r requirements.txt
 python main.py
 ```
 
+# FastAPI
+
+```
+uvicorn main:app --reload
+
+```
+
 The backend API will be available at: http://localhost:8000
 
 ### 3. ASR Service Setup

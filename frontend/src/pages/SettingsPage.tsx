@@ -17,15 +17,19 @@ const SettingsPage: React.FC = () => {
   });
 
   useEffect(() => {
-    if (user) {
-      setSettings({
-        auto_delete_enabled: user.auto_delete_enabled,
-        retention_hours: user.retention_hours,
-        preferred_llm_model: user.preferred_llm_model || "gpt-4o-mini",
-        overlay_position: user.overlay_position || "bottom-right",
-      });
-    }
-  }, [user]);
+    (async () => {
+      try {
+        const { data } = await userAPI.getProfile();
+        setSettings((s) => ({
+          ...s,
+          auto_delete_enabled: data.auto_delete_enabled,
+          retention_hours: data.retention_hours,
+          preferred_llm_model: data.preferred_llm_model ?? "gpt-4o-mini",
+          overlay_position: data.overlay_position ?? "bottom-right",
+        }));
+      } catch {}
+    })();
+  }, []);
 
   const handleSave = async () => {
     setIsSaving(true);

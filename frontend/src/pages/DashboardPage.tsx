@@ -43,8 +43,11 @@ const DashboardPage: React.FC = () => {
         resumeAPI.getAll(),
       ]);
 
-      setSessions(sessionsResponse.data);
-      setResumes(resumesResponse.data);
+      // setSessions(sessionsResponse.data);
+      // setResumes(resumesResponse.data);
+
+      setSessions(sessionsResponse.data.items ?? []);
+      setResumes(resumesResponse.data ?? []);
     } catch (error) {
       console.error("Failed to load data:", error);
       toast.error("Failed to load dashboard data");
@@ -59,7 +62,8 @@ const DashboardPage: React.FC = () => {
       const response = await sessionAPI.create({
         platform: "desktop",
         session_type: "interview",
-        retention_policy: user?.auto_delete_enabled ? "auto" : "manual",
+        // retention_policy: user?.auto_delete_enabled ? "auto" : "manual",
+        retention_policy: "auto",
       });
 
       await startSession(response.data.id);
@@ -246,8 +250,11 @@ const DashboardPage: React.FC = () => {
                         <p className="text-sm font-medium text-gray-900">
                           {session.session_type} - {session.platform}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        {/* <p className="text-xs text-gray-500">
                           {new Date(session.started_at).toLocaleDateString()}
+                        </p> */}
+                        <p className="text-xs text-gray-500">
+                          Status: {session.status}
                         </p>
                       </div>
                     </div>
@@ -286,9 +293,11 @@ const DashboardPage: React.FC = () => {
                         <p className="text-sm font-medium text-gray-900">
                           {resume.filename}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        {/* <p className="text-xs text-gray-500">
                           {(resume.file_size / 1024 / 1024).toFixed(1)} MB
-                        </p>
+                        </p> */}
+
+                        <p className="text-xs text-gray-500">Uploaded</p>
                       </div>
                     </div>
                     <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
